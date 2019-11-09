@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "args": "^5.0.1",
-    "chalk": "^2.3.2",
+    "chalk": "^3.0.0",
     "end-of-stream": "^1.4.1",
     "from2-array": "0.0.4",
     "mkdirp": "^0.5.1",
