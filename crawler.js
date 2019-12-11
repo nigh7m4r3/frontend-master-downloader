@@ -5,13 +5,18 @@ const url = 'https://frontendmasters.com';
 const SECONDES = 1000;
 let stopInterval;
 
-module.exports = async ({ user, pass, courses, id }) => {
+module.exports = async ({ user, pass, courses, id, verbose }) => {
   console.log(chalk.green('You are using frontendmaster-downloader \n'));
   console.log(chalk.green('Try the login ... \n'));
-  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const chromeOptions = {
+    headless:false,
+    defaultViewport: null,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  };
+  const browser = await puppeteer.launch(chromeOptions);
   const page = await browser.newPage();
   await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36"
   );
   await page.goto(url + '/login');
 
@@ -26,13 +31,20 @@ module.exports = async ({ user, pass, courses, id }) => {
   await button.click();
   console.log(chalk.green(user + ' logged \n'));
   console.log(chalk.green('First scrape all the links... \n'));
-  let selector = '.title a';
+  await page.waitFor(60 * SECONDES);
+  await page.goto(url + '/courses/#all');
+  log(verbose, "visited /courses/#all");
+  let selector = '.cta a.ButtonSmall.ButtonRed';
+  log(verbose, "selector " + selector);
   await page.waitForSelector(selector);
   const obj = {
     selector,
     courses
   };
 
+  log(verbose, ["obj ",  obj]);
+
+  log(verbose, ["waiting 3 seconds "]);
   await page.waitFor(3 * SECONDES);
   let link = await page.evaluate(obj => {
     const anchors = Array.from(document.querySelectorAll(obj.selector));
@@ -45,7 +57,9 @@ module.exports = async ({ user, pass, courses, id }) => {
       })
       .pop();
   }, obj);
+  log(verbose, ["link ",  link]);
   await page.goto(link);
+  log(verbose, ["visited ",  link]);
   selector = '.LessonListItem a';
   await page.waitForSelector(selector);
   const links = await page.evaluate(selector => {
@@ -54,6 +68,7 @@ module.exports = async ({ user, pass, courses, id }) => {
       return `${anchor.href}`;
     });
   }, selector);
+  log(verbose, ["links ",  links]);
   let finalLinks = [];
   const newLinks = links.map((link, index) => {
     return {
@@ -61,6 +76,8 @@ module.exports = async ({ user, pass, courses, id }) => {
       link
     };
   });
+
+  log(verbose, ["newLinks ",  newLinks]);
 
   if (id) {
     const searchLink = `${url}/courses/${courses}/${id}/`;
@@ -90,7 +107,9 @@ module.exports = async ({ user, pass, courses, id }) => {
       console.log('ERROR', err);
     }
   } else {
+    log(verbose, ["No ID provided "]);
     finalLinks = await getLinks(newLinks);
+    log(verbose, ["finalLinks ",  finalLinks]);
     return finalLinks;
   }
 
@@ -100,22 +119,24 @@ module.exports = async ({ user, pass, courses, id }) => {
       const { index, link } = templink;
       try {
         await page.goto(link);
+        console.log("Go to lecture Link: ", link);
+        console.log("Go to lecture Link: ", link);
       } catch (err) {
-        //console.log("erreur, err");
+        console.log("erreur", err);
       }
       const selector = 'video';
 
-      await page.waitFor(8 * SECONDES);
-      let videoLink = await page
-        .evaluate(selector => {
-          const video = Array.from(document.querySelectorAll(selector)).pop();
+      console.log('waiting 5 seconds.');
+      await page.waitFor(5 * SECONDES);
+      let videoLink = await page.evaluate(_selector => {
+          console.log('Array.from(document.querySelectorAll(_selector))', Array.from(document.querySelectorAll(_selector)));
+          const video = Array.from(document.querySelectorAll(_selector)).pop();
           return video.src;
-        }, selector)
-        .catch(err => {
-          //console.log(err);
+        }, selector).catch(err => {
+          console.log('error', err);
           return 'retry';
         });
-      //console.log("video link fetched", videoLink);
+      console.log("video link fetched", videoLink);
 
       if (videoLink === 'retry' || !videoLink.length) {
         console.log(chalk.red('You have reached maximum request limit \n'));
@@ -160,4 +181,12 @@ function interval(totalTime, intervalTime) {
     let time = msToMin(remainTime);
     console.log(chalk.blue(time + 'min remaining \n'));
   }
+}
+
+function log(verbose, data) {
+  // if(!verbose) {
+  //   return true;
+  // }
+
+  console.log(data);
 }
